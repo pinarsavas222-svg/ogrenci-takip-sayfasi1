@@ -232,5 +232,6 @@ elif st.session_state.user_type == "ogrenci":
         
         # Öğrencinin konuları görmesi ve kendisinin de güncelleyebilmesi için
         for konu, yuzde in data["topics"].items():
+            
             st.write(f"**{konu}** (Hakimiyet: %{yuzde})")
             st.progress(yuzde / 100.0)
