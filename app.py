@@ -1,167 +1,236 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import date, datetime
 
 # 1. Sayfa Tasarımı ve Başlık Ayarları
-st.set_page_config(page_title="Öğrenci Takip Sistemi", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="Pınar Öğretmen Koçluk Paneli", page_icon="📐", layout="wide")
 
 # 2. Uygulama Hafızası (Session State) Kurulumu
-# Sayfa yenilendiğinde veya sekmeler arası geçişte verilerin kaybolmaması için geçici hafıza oluşturuyoruz
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "homeworks" not in st.session_state:
-    st.session_state.homeworks = [
-        {"id": 1, "tanim": "Matematik - Yeni Nesil Üslü Sayılar Test 1", "tamamlandi": False},
-        {"id": 2, "tanim": "Geometri - Üçgende Açılar Fasikülü", "tamamlandi": False},
-        {"id": 3, "tanim": "LGS Deneme - 2 Eksik Analizlerinin Yapılması", "tamamlandi": False}
-    ]
-if "mistakes" not in st.session_state:
-    st.session_state.mistakes = []
-if "exams" not in st.session_state:
-    st.session_state.exams = []
+if "user_type" not in st.session_state: # "ogretmen" veya "ogrenci"
+    st.session_state.user_type = None
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
 
-# 3. Mail Gönderme Simülasyonu
-def mail_gonder(odev_adi):
-    # Gerçek sistemde buraya SMTP mail kodları entegre edilir.
-    # Canlı testlerde sistemin çalıştığını görmek için ekrana dinamik bir e-posta uyarısı fırlatıyoruz.
-    st.toast(f"📧 VELİYE BİLGİLENDİRME: 'İşaretlenen Ödev: {odev_adi}' başarıyla tamamlandı!", icon="🚀")
+# Örnek Öğrenci Veritabanı Önyüklemesi (Geçici Hafıza)
+if "student_data" not in st.session_state:
+    st.session_state.student_data = {
+        "Ahmet Yılmaz": {
+            "homeworks": [
+                {"id": 1, "tanim": "Matematik - Çarpanlar ve Katlar Test 1 & 2", "tamamlandi": False},
+                {"id": 2, "tanim": "LGS Deneme Analizi Yapılacak", "tamamlandi": True}
+            ],
+            "mistakes": [],
+            "exams": [{"Tarih": "2026-06-15", "Deneme Adı": "Özdebir LGS-1", "Doğru": 16, "Yanlış": 4, "Net": 15.0}],
+            "topics": {"Çarpanlar ve Katlar": 40, "Üslü İfadeler": 10, "Köklü İfadeler": 0}
+        },
+        "Zeynep Kaya": {
+            "homeworks": [
+                {"id": 3, "tanim": "Matematik - Üslü Sayılar Yeni Nesil Soru Çözümü", "tamamlandi": False}
+            ],
+            "mistakes": [],
+            "exams": [{"Tarih": "2026-06-16", "Deneme Adı": "Özdebir LGS-1", "Doğru": 18, "Yanlış": 2, "Net": 17.5}],
+            "topics": {"Çarpanlar ve Katlar": 80, "Üslü İfadeler": 60, "Köklü İfadeler": 20}
+        }
+    }
+
+# 3. Giriş Bilgileri Tanımlama
+USERS = {
+    "pinar": {"şifre": "hoca123", "tip": "ogretmen", "isim": "Pınar Öğretmen"},
+    "ahmet": {"şifre": "1234", "tip": "ogrenci", "isim": "Ahmet Yılmaz"},
+    "zeynep": {"şifre": "5678", "tip": "ogrenci", "isim": "Zeynep Kaya"}
+}
+
+# LGS 2027 Geri Sayım Sayacı (Haziran 2027 varsayılan)
+def geri_sayim():
+    sinav_tarihi = datetime(2027, 6, 5) # 2027 LGS Tahmini Tarih
+    bugun = datetime.now()
+    kalan_zaman = sinav_tarihi - bugun
+    if kalan_zaman.days > 0:
+        st.metric(label="⏳ 2027 LGS Sınavına Kalan Gün", value=f"{kalan_zaman.days} Gün")
+    else:
+        st.metric(label="⏳ 2027 LGS Sınavı", value="Sınav Günü Geldiler!")
 
 # ==========================================
 # GİRİŞ EKRANI
 # ==========================================
 if not st.session_state.logged_in:
-    st.title("🎓 Öğrenci Giriş Paneli")
-    st.write("Lütfen öğretmeninizin size verdiği bilgilerle giriş yapın.")
+    st.title("📐 Pınar Öğretmen - Eğitim Koçluğu & Matematik Paneli")
+    st.subheader("Giriş Yaparak Sisteminize Ulaşın")
     
-    username = st.text_input("Kullanıcı Adı")
-    password = st.text_input("Şifre", type="password")
-    
-    if st.button("Giriş Yap", use_container_width=True):
-        # Örnek giriş bilgileri (İleride bir veri tabanına bağlanabilir)
-        if username == "ogrenci" and password == "1234":
-            st.session_state.logged_in = True
-            st.rerun()
-        else:
-            st.error("Hatalı kullanıcı adı veya şifre! (Denemek için ogrenci / 1234 yazın)")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        username = st.text_input("Kullanıcı Adı (pinar / ahmet / zeynep)").strip().lower()
+        password = st.text_input("Şifre (hoca123 / 1234 / 5678)", type="password")
+        
+        if st.button("Sisteme Giriş Yap", use_container_width=True):
+            if username in USERS and USERS[username]["şifre"] == password:
+                st.session_state.logged_in = True
+                st.session_state.user_type = USERS[username]["tip"]
+                st.session_state.current_user = USERS[username]["isim"]
+                st.rerun()
+            else:
+                st.error("Kullanıcı adı veya şifre hatalı!")
+    with col2:
+        st.info("💡 **Denemek İçin Giriş Bilgileri:**\n\n* **Öğretmen:** pinar / hoca123\n* **Öğrenci 1:** ahmet / 1234\n* **Öğrenci 2:** zeynep / 5678")
 
 # ==========================================
-# ANA UYGULAMA PANELİ (Giriş Yapıldıysa)
+# ÖĞRETMEN PANELİ
 # ==========================================
-else:
-    # Sol Menü (Sidebar)
-    st.sidebar.title("👤 Öğrenci Profili")
-    st.sidebar.write("Hoş geldin, *Başarılı Öğrenci* 👋")
-    st.sidebar.info("Danışman: Pınar Öğretmen")
-    
+elif st.session_state.user_type == "ogretmen":
+    st.sidebar.title("🛠️ Öğretmen Menüsü")
+    st.sidebar.write(f"Hoş geldiniz, **{st.session_state.current_user}** 👋")
     if st.sidebar.button("Güvenli Çıkış"):
         st.session_state.logged_in = False
         st.rerun()
         
-    st.title("🚀 Öğrenci Gelişim ve Takip Paneli")
-    st.write("Ödevlerini tamamla, hatalarını kaydet ve gelişimini grafiklerle izle.")
+    st.title("👩‍🏫 Yönetim ve Eğitim Koçu Paneli")
+    st.write("Tüm öğrencilerinizin durumunu buradan canlı olarak izleyebilir ve ödev atayabilirsiniz.")
     
-    # Sekmeler (Tabs) Oluşturma
-    tab1, tab2, tab3 = st.tabs(["📝 Ödevlerim", "📚 Yanlış Defterim", "📊 Deneme Takibi"])
+    # Öğrenci Seçimi
+    secilen_ogrenci = st.selectbox("Durumunu İncelemek İstediğiniz Öğrenci:", list(st.session_state.student_data.keys()))
     
-    # ------------------------------------------
-    # TAB 1: ÖDEVLERİM VE MAİL SİSTEMİ
-    # ------------------------------------------
-    with tab1:
-        st.header("Yapılacak Ödevler")
-        st.caption("Ödevini bitirdiğinde kutucuğu işaretle, veline anında e-posta gitsin.")
+    data = st.session_state.student_data[secilen_ogrenci]
+    
+    o_tab1, o_tab2, o_tab3 = st.tabs(["➕ Yeni Ödev Ver", "📊 Sınavlar & Konu Analizleri", "📚 Yanlış Defteri İncele"])
+    
+    with o_tab1:
+        st.subheader(f"📝 {secilen_ogrenci} İçin Ödev Yönetimi")
         
-        for index, odev in enumerate(st.session_state.homeworks):
-            key = f"odev_{odev['id']}"
+        # Yeni Ödev Ekleme Formu
+        with st.form("yeni_odev_formu"):
+            yeni_odev_tanim = st.text_input("Ödev Açıklaması (Örn: Köklü Sayılar MEB Esaslı Sorular sayfa 40-50)")
+            if st.form_submit_button("Ödevi Öğrenciye Ata"):
+                if yeni_odev_tanim:
+                    yeni_id = len(data["homeworks"]) + 1
+                    data["homeworks"].append({"id": yeni_id, "tanim": yeni_odev_tanim, "tamamlandi": False})
+                    st.success(f"Ödev {secilen_ogrenci} paneline başarıyla eklendi!")
+                    st.rerun()
+        
+        # Mevcut Ödevlerin Durumu
+        st.write("**Mevcut Ödev Durumları:**")
+        for o in data["homeworks"]:
+            durum = "✅ Tamamlandı" if o["tamamlandi"] else "⏳ Yapılmadı"
+            st.write(f"- {o['tanim']} -> **{durum}**")
             
-            # Öğrenci kutucuğu işaretliyor mu kontrolü
+    with o_tab2:
+        st.subheader(f"📊 {secilen_ogrenci} Gelişim Grafikleri")
+        if data["exams"]:
+            df_o = pd.DataFrame(data["exams"])
+            st.line_chart(df_o.set_index("Deneme Adı")[["Net"]])
+            st.dataframe(df_o)
+        else:
+            st.info("Öğrenci henüz deneme sınavı girmedi.")
+            
+        st.subheader("📐 Matematik Konu İlerleme Yüzdeleri")
+        for konu, yuzde in data["topics"].items():
+            st.write(f"{konu}:")
+            st.progress(yuzde / 100.0)
+            
+    with o_tab3:
+        st.subheader(f"📚 {secilen_ogrenci} Tarafından Yüklenen Hatalı Sorular")
+        if data["mistakes"]:
+            for i, m in enumerate(data["mistakes"]):
+                with st.expander(f"Soru {i+1} - {m['tarih']}"):
+                    st.image(m['foto'], use_container_width=True)
+                    st.write(f"**Hata Nedeni:** {m['neden']}")
+                    st.write(f"**Doğru Çözüm Notu:** {m['cozum']}")
+        else:
+            st.info("Öğrenci henüz yanlış defterine soru yüklemedi.")
+
+# ==========================================
+# ÖĞRENCİ PANELİ
+# ==========================================
+elif st.session_state.user_type == "ogrenci":
+    ogrenci_ismi = st.session_state.current_user
+    data = st.session_state.student_data[ogrenci_ismi]
+    
+    st.sidebar.title("👤 Öğrenci Profili")
+    st.sidebar.write(f"Hoş geldin, **{ogrenci_ismi}** ✨")
+    st.sidebar.caption("Danışman: Pınar Öğretmen")
+    
+    # Sayacı Sidebar'a koyalım
+    with st.sidebar:
+        st.markdown("---")
+        geri_sayim()
+        st.markdown("---")
+        
+    if st.sidebar.button("Güvenli Çıkış"):
+        st.session_state.logged_in = False
+        st.rerun()
+        
+    st.title(f"🚀 Başarı Takip Panelin")
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 Ödevlerim", "📚 Yanlış Defterim", "📊 Deneme Takibim", "📐 Matematik Konu Analizi"])
+    
+    # TAB 1: ÖDEVLER
+    with tab1:
+        st.header("Yapılacak Ödevlerin")
+        st.caption("Ödevini bitirdiğinde kutucuğu işaretle, Pınar Öğretmenine anında raporlansın.")
+        
+        for index, odev in enumerate(data["homeworks"]):
+            key = f"odev_{ogrenci_ismi}_{odev['id']}"
             checked = st.checkbox(odev['tanim'], value=odev['tamamlandi'], key=key)
             
-            # Durum değişikliği yönetimi
             if checked and not odev['tamamlandi']:
-                st.session_state.homeworks[index]['tamamlandi'] = True
-                mail_gonder(odev['tanim'])
+                data["homeworks"][index]['tamamlandi'] = True
+                st.toast(f"📧 PINAR ÖĞRETMENE BİLDİRİM: {ogrenci_ismi} '{odev['tanim']}' ödevini bitirdi!", icon="🚀")
                 st.rerun()
             elif not checked and odev['tamamlandi']:
-                st.session_state.homeworks[index]['tamamlandi'] = False
+                data["homeworks"][index]['tamamlandi'] = False
                 st.rerun()
 
-    # ------------------------------------------
-    # TAB 2: YANLIŞ DEFTERİ (FOTOĞRAF + NOT)
-    # ------------------------------------------
+    # TAB 2: YANLIŞ DEFTERİ
     with tab2:
-        st.header("🧠 Dijital Yanlış Defteri")
-        st.write("Seni sınavda öne geçirecek olan yapamadığın sorulardır. Buraya yükle!")
-        
-        with st.form("yanlis_formu", clear_on_submit=True):
-            uploaded_file = st.file_uploader("Sorunun Fotoğrafını Çek veya Yükle", type=["jpg", "png", "jpeg"])
-            hata_nedeni = st.text_area("Bu soruda nerede hata yaptın? (Örn: Soru kökünü yanlış okudum, formülü unuttum...)")
+        st.header("🧠 Dijital Yanlış Defterim")
+        with st.form("ogrenci_yanlis_formu", clear_on_submit=True):
+            uploaded_file = st.file_uploader("Sorunun Fotoğrafını Yükle", type=["jpg", "png", "jpeg"])
+            hata_nedeni = st.text_area("Bu soruda neden hata yaptın?")
             dogru_cozum = st.text_area("Sorunun Doğru Çözüm Mantığı:")
-            
-            submit_button = st.form_submit_button("Yanlış Defterine Kaydet", use_container_width=True)
-            
-            if submit_button:
+            if st.form_submit_button("Yanlış Defterine Kaydet"):
                 if uploaded_file and hata_nedeni and dogru_cozum:
-                    # Yeni hatayı hafızaya ekleme
-                    yeni_hata = {
+                    data["mistakes"].append({
                         "foto": uploaded_file.read(),
                         "neden": hata_nedeni,
                         "cozum": dogru_cozum,
                         "tarih": date.today().strftime("%d.%m.%Y")
-                    }
-                    st.session_state.mistakes.append(yeni_hata)
-                    st.success("Harika! Soru başarıyla yanlış defterine eklendi.")
-                else:
-                    st.warning("Lütfen fotoğraf yükleyin ve metin alanlarını doldurun.")
+                    })
+                    st.success("Soru başarıyla defterine eklendi!")
+                    st.rerun()
                     
-        # Kaydedilen Soruları Listeleme
-        if st.session_state.mistakes:
-            st.subheader("📚 Kaydedilen Hatalı Sorularım")
-            for i, m in enumerate(reversed(st.session_state.mistakes)):
-                with st.expander(f"❌ Soru {len(st.session_state.mistakes) - i} - Tarih: {m['tarih']}"):
-                    st.image(m['foto'], caption="Öğrencinin Yüklediği Soru", use_container_width=True)
-                    st.markdown(f"*🧐 Hata Nedeni:* {m['neden']}")
-                    st.markdown(f"*💡 Doğru Çözüm Notu:* {m['cozum']}")
+        if data["mistakes"]:
+            for i, m in enumerate(reversed(data["mistakes"])):
+                with st.expander(f"❌ Soru {len(data['mistakes']) - i}"):
+                    st.image(m['foto'], use_container_width=True)
+                    st.write(f"**Hata Nedeni:** {m['neden']}")
+                    st.write(f"**Doğru Çözüm:** {m['cozum']}")
 
-    # ------------------------------------------
-    # TAB 3: DENEME SINAVI GRAFİK TAKİBİ
-    # ------------------------------------------
+    # TAB 3: DENEME Sınavları
     with tab3:
-        st.header("📊 Deneme Sınavı Performansı")
-        
-        # Veri Giriş Formu
-        with st.form("deneme_formu", clear_on_submit=True):
+        st.header("📊 Deneme Performansım")
+        with st.form("ogrenci_deneme_formu", clear_on_submit=True):
+            d_adi = st.text_input("Deneme Sınavı Adı (Örn: TÖDER LGS-1)")
             col1, col2 = st.columns(2)
-            with col1:
-                deneme_tarih = st.date_input("Sınav Tarihi", date.today())
-                deneme_adi = st.text_input("Deneme Sınavı Adı (Örn: Özdebir LGS-1)")
-            with col2:
-                dogru = st.number_input("Doğru Sayısı", min_value=0, max_value=100, step=1)
-                yanlis = st.number_input("Yanlış Sayısı", min_value=0, max_value=100, step=1)
-                
-            deneme_submit = st.form_submit_button("Deneme Sonucunu İşle", use_container_width=True)
-            
-            if deneme_submit and deneme_adi:
-                # Klasik net hesabı (3 yanlış 1 doğruyu götürür veya isteğe göre 4 yanlış)
-                net = dogru - (yanlis * 0.25) 
-                yeni_deneme = {
-                    "Tarih": deneme_tarih.strftime("%Y-%m-%d"),
-                    "Deneme Adı": deneme_adi,
-                    "Doğru": dogru,
-                    "Yanlış": yanlis,
-                    "Net": net
-                }
-                st.session_state.exams.append(yeni_deneme)
-                st.success("Deneme sonucu başarıyla listeye eklendi!")
+            with col1: d = st.number_input("Matematik Doğru", min_value=0, max_value=20, step=1)
+            with col2: y = st.number_input("Matematik Yanlış", min_value=0, max_value=20, step=1)
+            if st.form_submit_button("Sonucu İşle") and d_adi:
+                net = d - (y * 0.33) # LGS'de 3 yanlış 1 doğruyu götürür
+                data["exams"].append({"Tarih": date.today().strftime("%Y-%m-%d"), "Deneme Adı": d_adi, "Doğru": d, "Yanlış": y, "Net": round(net, 2)})
+                st.success("Deneme sonucu eklendi!")
                 st.rerun()
+                
+        if data["exams"]:
+            df = pd.DataFrame(data["exams"])
+            st.line_chart(df.set_index("Deneme Adı")[["Net"]])
+            st.dataframe(df)
 
-        # Grafik ve Tablo Alanı
-        if st.session_state.exams:
-            df = pd.DataFrame(st.session_state.exams)
-            
-            st.subheader("📈 Net Değişim Grafiğin")
-            # Çizgi grafiği için netleri index yapıyoruz
-            chart_data = df.set_index("Deneme Adı")[["Net"]]
-            st.line_chart(chart_data)
-            
-            st.subheader("📋 Tüm Sınav Sonuçları")
-            st.dataframe(df, use_container_width=True)
+    # TAB 4: MATEMATİK KONU ANALİZİ
+    with tab4:
+        st.header("📐 LGS Matematik Konu Yetkinlik Durumun")
+        st.write("Pınar Öğretmeninin senin için belirlediği konu hakimiyet yüzdeleri:")
+        
+        # Öğrencinin konuları görmesi ve kendisinin de güncelleyebilmesi için
+        for konu, yuzde in data["topics"].items():
+            st.write(f"**{konu}** (Hakimiyet: %{yuzde})")
+            st.progress(yuzde / 100.0)
