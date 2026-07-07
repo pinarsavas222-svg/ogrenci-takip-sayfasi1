@@ -95,17 +95,28 @@ elif st.session_state.user_type == "ogretmen":
     
     o_tab1, o_tab2, o_tab3 = st.tabs(["➕ Yeni Ödev Ver", "📊 Sınavlar & Konu Analizleri", "📚 Yanlış Defteri İncele"])
     
-    with o_tab1:
+   with o_tab1:
         st.subheader(f"📝 {secilen_ogrenci} İçin Ödev Yönetimi")
+        
+        # Google Sheets bağlantısı (Dosyanın en başına da ekleyebilirsiniz)
+        conn = st.connection("gsheets", type=GSheetsConnection)
         
         # Yeni Ödev Ekleme Formu
         with st.form("yeni_odev_formu"):
-            yeni_odev_tanim = st.text_input("Ödev Açıklaması (Örn: Köklü Sayılar MEB Esaslı Sorular sayfa 40-50)")
+            yeni_odev_tanim = st.text_input("Ödev Açıklaması")
             if st.form_submit_button("Ödevi Öğrenciye Ata"):
                 if yeni_odev_tanim:
+                    # 1. Hafızaya ekle (Sizin mevcut kodunuz)
                     yeni_id = len(data["homeworks"]) + 1
-                    data["homeworks"].append({"id": yeni_id, "tanim": yeni_odev_tanim, "tamamlandi": False})
-                    st.success(f"Ödev {secilen_ogrenci} paneline başarıyla eklendi!")
+                    yeni_odev = {"id": yeni_id, "tanim": yeni_odev_tanim, "tamamlandi": False, "ogrenci": secilen_ogrenci}
+                    data["homeworks"].append(yeni_odev)
+                    
+                    # 2. Google Sheets'e gönder
+                    # Tüm ödev listesini DataFrame yapıp Sheets'e kaydediyoruz
+                    df_guncel = pd.DataFrame(data["homeworks"])
+                    conn.update(worksheet="Odevler", data=df_guncel) # 'Odevler' adında bir sekmeniz olsun
+                    
+                    st.success(f"Ödev {secilen_ogrenci} için kaydedildi!")
                     st.rerun()
         
         # Mevcut Ödevlerin Durumu
