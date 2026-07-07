@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection
+# Google Bağlantısı (Sadece bir kere tanımlanır)
+conn = st.connection("gsheets", type=GSheetsConnection)
 from datetime import date, datetime
 
 # 1. Sayfa Tasarımı ve Başlık Ayarları
@@ -13,27 +16,9 @@ if "user_type" not in st.session_state: # "ogretmen" veya "ogrenci"
 if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
-# Örnek Öğrenci Veritabanı Önyüklemesi (Geçici Hafıza)
-if "student_data" not in st.session_state:
-    st.session_state.student_data = {
-        "Ahmet Yılmaz": {
-            "homeworks": [
-                {"id": 1, "tanim": "Matematik - Çarpanlar ve Katlar Test 1 & 2", "tamamlandi": False},
-                {"id": 2, "tanim": "LGS Deneme Analizi Yapılacak", "tamamlandi": True}
-            ],
-            "mistakes": [],
-            "exams": [{"Tarih": "2026-06-15", "Deneme Adı": "Özdebir LGS-1", "Doğru": 16, "Yanlış": 4, "Net": 15.0}],
-            "topics": {"Çarpanlar ve Katlar": 40, "Üslü İfadeler": 10, "Köklü İfadeler": 0}
-        },
-        "Zeynep Kaya": {
-            "homeworks": [
-                {"id": 3, "tanim": "Matematik - Üslü Sayılar Yeni Nesil Soru Çözümü", "tamamlandi": False}
-            ],
-            "mistakes": [],
-            "exams": [{"Tarih": "2026-06-16", "Deneme Adı": "Özdebir LGS-1", "Doğru": 18, "Yanlış": 2, "Net": 17.5}],
-            "topics": {"Çarpanlar ve Katlar": 80, "Üslü İfadeler": 60, "Köklü İfadeler": 20}
-        }
-    }
+# Verileri Google'dan çekiyoruz
+df_odevler = conn.read(worksheet="Odevler")
+df_denemeler = conn.read(worksheet="Denemeler")
 
 # 3. Giriş Bilgileri Tanımlama
 USERS = {
