@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from streamlit_gsheets import GSheetsConnection
 from datetime import date, datetime
 
 # 1. Sayfa Tasarımı ve Başlık Ayarları
@@ -95,7 +96,7 @@ elif st.session_state.user_type == "ogretmen":
     
     o_tab1, o_tab2, o_tab3 = st.tabs(["➕ Yeni Ödev Ver", "📊 Sınavlar & Konu Analizleri", "📚 Yanlış Defteri İncele"])
     
-   with o_tab1:
+with o_tab1:
         st.subheader(f"📝 {secilen_ogrenci} İçin Ödev Yönetimi")
         
         # Google Sheets bağlantısı (Dosyanın en başına da ekleyebilirsiniz)
